@@ -39,22 +39,48 @@ jobs:
 
       - name: Download game APK and extract optional level data
         run: |
-          set -euo pipefail
+          echo "Downloaded files:"
+          find "$RUNNER_TEMP/game-apk" -type f -print
 
-          mkdir -p "$RUNNER_TEMP/apkeep" "$RUNNER_TEMP/game-apk"
-          curl --fail --location --silent --show-error \
-            https://github.com/EFForg/apkeep/releases/download/1.1.0/apkeep-x86_64-unknown-linux-gnu \
-            --output "$RUNNER_TEMP/apkeep/apkeep"
-          chmod +x "$RUNNER_TEMP/apkeep/apkeep"
-
-          "$RUNNER_TEMP/apkeep/apkeep" \
-            -a com.ecffri.arrows -d apk-pure -o 'acknowledge_dangers=true' \
-            "$RUNNER_TEMP/game-apk"
-
-          game_apk="$(find "$RUNNER_TEMP/game-apk" -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          if [ -z "$game_apk" ]; then
-            echo "apkeep did not produce an APK file" >&2
+          game_file="$(find "$RUNNER_TEMP/game-apk" -type f \( -iname '*.apk' -o -iname '*.xapk' \) -print -quit)"
+          if [ -z "$game_file" ]; then
+            echo "apkeep produced no .apk or .xapk file" >&2
             exit 1
+          fi
+
+          if [[ "$game_file" == *.xapk ]]; then
+            python3 - "$game_file" "$RUNNER_TEMP/game.apk" <<'PY'
+          import io
+          import sys
+          import zipfile
+
+          xapk_path, output_path = sys.argv[1:]
+          with zipfile.ZipFile(xapk_path) as xapk:
+              apk_files = [name for name in xapk.namelist() if name.lower().endswith(".apk")]
+              for name in apk_files:
+                  try:
+                      payload = xapk.read(name)
+                      with zipfile.ZipFile(io.BytesIO(payload)) as apk:
+                          if any(
+                              item.startswith("assets/aa/Android/levels-")
+                              and item.endswith(".bundle")
+                              for item in apk.namelist()
+                          ):
+                              with open(output_path, "wb") as out:
+                                  out.write(payload)
+                              print(f"Using {name} from XAPK")
+                              break
+                  except (KeyError, zipfile.BadZipFile):
+                      continue
+              else:
+                  raise SystemExit(
+                      "No embedded APK contains the expected game level bundles. "
+                      f"APK files in XAPK: {apk_files}"
+                  )
+          PY
+            game_apk="$RUNNER_TEMP/game.apk"
+          else
+            game_apk="$game_file"
           fi
 
           python3 -m pip install --disable-pip-version-check 'UnityPy==1.*'
