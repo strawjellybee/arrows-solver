@@ -1,0 +1,50 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "ndk;27.1.12297006"
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build APK
+        run: |
+          chmod +x android/gradlew
+          ./android/gradlew -p android assembleDebug
+
+      - name: Save APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arrows-solver-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
