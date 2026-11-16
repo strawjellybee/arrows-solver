@@ -50,8 +50,6 @@ jobs:
           "$RUNNER_TEMP/apkeep/apkeep" \
             -a com.ecffri.arrows -d apk-pure -o 'acknowledge_dangers=true' \
             -d google-play \
-            -e "$APKEEP_EMAIL" \
-            -t "$APKEEP_AAS_TOKEN" \
             "$RUNNER_TEMP/game-apk"
 
           game_apk="$(find "$RUNNER_TEMP/game-apk" -maxdepth 1 -type f -name '*.apk' -print -quit)"
