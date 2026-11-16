@@ -38,15 +38,8 @@ jobs:
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
 
       - name: Download game APK and extract optional level data
-        env:
-          APKEEP_EMAIL: ${{ secrets.APKEEP_EMAIL }}
-          APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "$APKEEP_EMAIL" ] || [ -z "$APKEEP_AAS_TOKEN" ]; then
-            echo "APKEEP_EMAIL/APKEEP_AAS_TOKEN not configured; building without levels.bin."
-            exit 0
-          fi
 
           mkdir -p "$RUNNER_TEMP/apkeep" "$RUNNER_TEMP/game-apk"
           curl --fail --location --silent --show-error \
@@ -55,7 +48,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/apkeep/apkeep"
 
           "$RUNNER_TEMP/apkeep/apkeep" \
-            -a com.ecffri.arrows \
+            -a com.ecffri.arrows -d apk-pure -o 'acknowledge_dangers=true' \
             -d google-play \
             -e "$APKEEP_EMAIL" \
             -t "$APKEEP_AAS_TOKEN" \
