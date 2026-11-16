@@ -36,7 +36,40 @@ jobs:
 
       - name: Install Android SDK components
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
-        
+
+      - name: Download game APK and extract optional level data
+        env:
+          APKEEP_EMAIL: ${{ secrets.APKEEP_EMAIL }}
+          APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$APKEEP_EMAIL" ] || [ -z "$APKEEP_AAS_TOKEN" ]; then
+            echo "APKEEP_EMAIL/APKEEP_AAS_TOKEN not configured; building without levels.bin."
+            exit 0
+          fi
+
+          mkdir -p "$RUNNER_TEMP/apkeep" "$RUNNER_TEMP/game-apk"
+          curl --fail --location --silent --show-error \
+            https://github.com/EFForg/apkeep/releases/download/1.1.0/apkeep-x86_64-unknown-linux-gnu \
+            --output "$RUNNER_TEMP/apkeep/apkeep"
+          chmod +x "$RUNNER_TEMP/apkeep/apkeep"
+
+          "$RUNNER_TEMP/apkeep/apkeep" \
+            -a com.ecffri.arrows \
+            -d google-play \
+            -e "$APKEEP_EMAIL" \
+            -t "$APKEEP_AAS_TOKEN" \
+            "$RUNNER_TEMP/game-apk"
+
+          game_apk="$(find "$RUNNER_TEMP/game-apk" -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [ -z "$game_apk" ]; then
+            echo "apkeep did not produce an APK file" >&2
+            exit 1
+          fi
+
+          python3 -m pip install --disable-pip-version-check 'UnityPy==1.*'
+          python3 tools/extract_levels.py "$game_apk"
+
       - name: Install JavaScript dependencies
         run: npm ci
 
